@@ -2,8 +2,8 @@
 
 import { loadStripe } from '@stripe/stripe-js';
 import toast from 'react-hot-toast';
-import { useSession } from 'next-auth/react';
-import { redirect } from 'next/navigation';
+import { useSession, signIn } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 interface CheckoutButtonProps {
@@ -15,23 +15,23 @@ interface CheckoutButtonProps {
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 export default function CheckoutButton({ priceId, productId, className }: CheckoutButtonProps) {
-	const { data: session } = useSession();
-	const user = session?.user;
-	const email = user?.email;
-	const [isLoading, setIsLoading] = useState(false);
+        const { data: session } = useSession();
+        const user = session?.user;
+        const email = user?.email;
+        const [isLoading, setIsLoading] = useState(false);
+        const router = useRouter();
 
-	const handleCheckout = async () => {
-		if (!user) {
-			toast.error("Please log in first");
-			redirect('/api/auth/signin?callbackUrl=/');
-			return;
-		}
+        const handleCheckout = async () => {
+                if (!user) {
+                        await signIn(undefined, { callbackUrl: '/app/profile' });
+                        return;
+                }
 
-		// If it's a free plan (empty priceId), redirect to app
-		if (!priceId) {
-			redirect('/app/notes');
-			return;
-		}
+                // If it's a free plan (empty priceId), redirect to app
+                if (!priceId) {
+                        router.push('/app/notes');
+                        return;
+                }
 
 		setIsLoading(true);
 		console.log('Loading started:', isLoading);
@@ -51,14 +51,14 @@ export default function CheckoutButton({ priceId, productId, className }: Checko
 		});
 		const session = await response.json();
 
-		if (response.ok) {
-			await stripe?.redirectToCheckout({ sessionId: session.id });
-		} else if (response.status === 400) {
-			toast.success('You are already subscribed');
-			redirect('/app/profile');
-		} else {
-			toast.error('Something went wrong');
-		}
+                if (response.ok) {
+                        await stripe?.redirectToCheckout({ sessionId: session.id });
+                } else if (response.status === 400) {
+                        toast.success('You are already subscribed');
+                        router.replace('/app/profile');
+                } else {
+                        toast.error('Something went wrong');
+                }
 
 		setIsLoading(false);
 	}
